@@ -32,7 +32,7 @@ gulp.task('concat', function() {
 		.pipe(gulp.dest('./_build/js-app'));
 });
 
-gulp.task('copy', function(){
+gulp.task('copy', function() {
 	return gulp
 		.src('./_build/**/*')
 		.pipe(gulp.dest('../../web/static/'));
