@@ -1,6 +1,9 @@
 var gulp = require('gulp')
+	, replace = require('gulp-replace')
 	, concat = require('gulp-concat')
-	, clean = require('gulp-clean')
+	, less = require('gulp-less')
+	, minifyCSS = require('gulp-minify-css')
+	, templateCache = require('gulp-angular-templatecache')
 	, runSequence = require('run-sequence')
 	, crypto = require("crypto");
 
@@ -9,45 +12,70 @@ var gulp = require('gulp')
  * @type {string[]}
  */
 var jsFiles = [
+
+	// libs
 	'./bower_components/jquery/dist/jquery.js'
-	, './bower_components/angular/angular.js'
 	, './bower_components/underscore/underscore.js'
+
+	// angular.js and its components
+	, './bower_components/angular/angular.js'
+	, './bower_components/angular-route/angular-route.js'
+	, './bower_components/angular-resource/angular-resource.js'
+
+	// my application components
 	, 'app/app.js'
+	, 'app/_all-templates.js'  // Скомпилированные в angular-template-cache шаблоны
+	, 'app/chat/**/*.js'
 ];
 
-/**
- * Имя сгенерированного js файла
- * @type {string}
- */
-var mainJsFile = crypto.createHash("md5")
-		.update((new Date()).getTime().toString())
-		.digest("hex")
-		.substring(1, 8) + '.all.js';
+var ts = (new Date()).getTime().toString();
 
-
-gulp.task('concat', function() {
+gulp.task('concat-js', function() {
 	// place code for your default task here
 	return gulp.src(jsFiles)
-		.pipe(concat({ path: mainJsFile}))
-		.pipe(gulp.dest('./_build/js-app'));
+		.pipe(concat({ path: 'main.js'}))
+		.pipe(gulp.dest('../../web/static/js-app/'));
 });
 
-gulp.task('copy', function() {
-	return gulp
-		.src('./_build/**/*')
-		.pipe(gulp.dest('../../web/static/'));
+gulp.task('styles', function() {
+	gulp.src('./less/main.less')
+		.pipe(less())
+		.pipe(minifyCSS())
+		.pipe(gulp.dest('../../web/static/css/'));
 });
 
-gulp.task('clean-tmp', function() {
-	return gulp.src('./_build/js-app', {read: false})
-		.pipe(clean());
+gulp.task('update-build-timestamp', function() {
+	gulp.src('./_staticFileBuildTs.php')
+		.pipe(replace('@@build-timestamp', function() { return ts; }))
+		.pipe(gulp.dest('../../views/layouts/'));
 });
 
-gulp.task('clean-prod', function() {
-	return gulp.src('../../web/static/', {read: false})
-		.pipe(clean({force: true}));
+gulp.task('js', function() {
+	// 1. Собираем кэш шаблонов ангулара
+	// 2. Склеиваем все js вместе
+	// 3. Обновляем timestamp билда
+	runSequence('ng-template', 'concat-js', 'update-build-timestamp');
 });
 
-gulp.task('default', function() {
-	runSequence('clean-tmp', 'concat', 'clean-prod', 'copy');
+gulp.task('css', function() {
+	runSequence('styles', 'update-build-timestamp');
+});
+
+// @link https://github.com/miickel/gulp-angular-templatecache
+gulp.task('ng-template', function () {
+	gulp.src('app/**/*.html')
+		.pipe(templateCache('_all-templates.js', {
+			//standalone: true
+		}))
+		.pipe(gulp.dest('app/'));
+});
+
+gulp.task('watch', function() {
+	runSequence('js', 'css');
+	gulp.watch('app/**/*', ['js'])
+		.on('change', function (event) {
+			console.log('Event type: ' + event.type);
+		});
+	gulp.watch('less/**/*', ['css']);
+
 });

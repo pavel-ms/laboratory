@@ -39300,3 +39300,15 @@ var minlengthDirective = function() {
     });
   }
 }.call(this));
+
+/**
+ * Создаем приложение angular
+ */
+angular
+	.module('app', [
+		/* Зависимости */
+	]);
+
+/**
+ * Конфигурируем роутер
+ **/
