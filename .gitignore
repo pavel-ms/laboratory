@@ -9,6 +9,9 @@ nbproject
 .project
 .settings
 
+# vagrant sys files
+.vagrant
+
 # windows thumbnail cache
 Thumbs.db
 
