@@ -1,5 +1,5 @@
 (function(window, $, _) {
-	var ChatApi = angular.module('app.services', ['ngResource']);
+	var ChatApi = angular.module('app.chatApi', ['ngResource']);
 
 	ChatApi.factory('messagesList', ['$resource', function($resource) {
 		//return $resource();
@@ -18,6 +18,37 @@
 				, user: 'User Name'
 			}
 		];
+	}]);
+
+	/**
+	 * Сервис взаимодействия с пользователем
+	 * @todo: переименовать в authservice
+	 * @todo: реализовать синглтон
+	 */
+	ChatApi.factory('User', ['$resource', function($resource) {
+		var authService = $resource('auth/get-token', {}, {
+			getToken: {
+				method: 'POST'
+			}
+		});
+
+		var User = function() {};
+		User.prototype = {
+			login: null,
+			password: null,
+
+			getToken: function() {
+				var self = this;
+				return authService.getToken({}, {
+					login: self.login
+					, password: self.password
+				}).$promise;
+			}
+		};
+
+		var usr = new User();
+
+		return usr;
 	}]);
 
 })(window, $, _);

@@ -10,6 +10,9 @@ $config = [
         'request' => [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
             'cookieValidationKey' => 'cookie-key-validation-aE4-Z_vD3H',
+			'parsers' => [
+				'application/json' => 'yii\web\JsonParser',
+			],
         ],
 
 		'cache' => [
@@ -20,6 +23,17 @@ $config = [
             'identityClass' => 'app\models\User',
             'enableAutoLogin' => true,
         ],
+
+		'urlManager' => [
+			'class' => 'yii\web\UrlManager',
+			'enablePrettyUrl' => true,
+			'rules' => [
+				'<_c:(login|chat)>' => '/',  // пока такой костыль, чтобы не возвращалась 404
+				'<controller:\w+>/<action:\w+>' => '<controller>/<action>',
+				'<module:\w+>/<controller:\w+>' => '<module>/<controller>/index',
+				'<module:\w+>/<controller:\w+>/<action:\w+>' => '<module>/<controller>/<action>'
+			],
+		],
 
 		'errorHandler' => [
             'errorAction' => 'site/error',
@@ -62,7 +76,10 @@ if (YII_ENV_DEV) {
     $config['modules']['debug'] = 'yii\debug\Module';
 
     $config['bootstrap'][] = 'gii';
-    $config['modules']['gii'] = 'yii\gii\Module';
+    $config['modules']['gii'] = [
+		'class' => 'yii\gii\Module',
+		'allowedIPs' => [$_SERVER['REMOTE_ADDR']],
+	];
 }
 
 return $config;

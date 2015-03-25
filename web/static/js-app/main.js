@@ -40981,6 +40981,110 @@ angular.module('ngResource', ['ng']).
 
 })(window, window.angular);
 
+'use strict';
+
+(function() {
+
+    /**
+     * @ngdoc overview
+     * @name ngStorage
+     */
+
+    angular.module('ngStorage', []).
+
+    /**
+     * @ngdoc object
+     * @name ngStorage.$localStorage
+     * @requires $rootScope
+     * @requires $window
+     */
+
+    factory('$localStorage', _storageFactory('localStorage')).
+
+    /**
+     * @ngdoc object
+     * @name ngStorage.$sessionStorage
+     * @requires $rootScope
+     * @requires $window
+     */
+
+    factory('$sessionStorage', _storageFactory('sessionStorage'));
+
+    function _storageFactory(storageType) {
+        return [
+            '$rootScope',
+            '$window',
+
+            function(
+                $rootScope,
+                $window
+            ){
+                // #9: Assign a placeholder object if Web Storage is unavailable to prevent breaking the entire AngularJS app
+                var webStorage = $window[storageType] || (console.warn('This browser does not support Web Storage!'), {}),
+                    $storage = {
+                        $default: function(items) {
+                            for (var k in items) {
+                                angular.isDefined($storage[k]) || ($storage[k] = items[k]);
+                            }
+
+                            return $storage;
+                        },
+                        $reset: function(items) {
+                            for (var k in $storage) {
+                                '$' === k[0] || delete $storage[k];
+                            }
+
+                            return $storage.$default(items);
+                        }
+                    },
+                    _last$storage,
+                    _debounce;
+
+                for (var i = 0, k; i < webStorage.length; i++) {
+                    // #8, #10: `webStorage.key(i)` may be an empty string (or throw an exception in IE9 if `webStorage` is empty)
+                    (k = webStorage.key(i)) && 'ngStorage-' === k.slice(0, 10) && ($storage[k.slice(10)] = angular.fromJson(webStorage.getItem(k)));
+                }
+
+                _last$storage = angular.copy($storage);
+
+                $rootScope.$watch(function() {
+                    _debounce || (_debounce = setTimeout(function() {
+                        _debounce = null;
+
+                        if (!angular.equals($storage, _last$storage)) {
+                            angular.forEach($storage, function(v, k) {
+                                angular.isDefined(v) && '$' !== k[0] && webStorage.setItem('ngStorage-' + k, angular.toJson(v));
+
+                                delete _last$storage[k];
+                            });
+
+                            for (var k in _last$storage) {
+                                webStorage.removeItem('ngStorage-' + k);
+                            }
+
+                            _last$storage = angular.copy($storage);
+                        }
+                    }, 100));
+                });
+
+                // #6: Use `$window.addEventListener` instead of `angular.element` to avoid the jQuery-specific `event.originalEvent`
+                'localStorage' === storageType && $window.addEventListener && $window.addEventListener('storage', function(event) {
+                    if ('ngStorage-' === event.key.slice(0, 10)) {
+                        event.newValue ? $storage[event.key.slice(10)] = angular.fromJson(event.newValue) : delete $storage[event.key.slice(10)];
+
+                        _last$storage = angular.copy($storage);
+
+                        $rootScope.$apply();
+                    }
+                });
+
+                return $storage;
+            }
+        ];
+    }
+
+})();
+
 /**
  * Создаем приложение angular
  */
@@ -40988,23 +41092,28 @@ var app = angular
 	.module('app', [
 		'ngRoute'
 		, 'ngResource'
+		, 'ngStorage'
 		// my own modules and services
 		, 'templates'
 		, 'app.controllers'
-		, 'app.services'
+		, 'app.chatApi'
 	]);
 
 /**
- * Конфигурируем роутер
+ * Конфигурируем приложение
  **/
-app.config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider) {
+app.config(['$routeProvider', '$locationProvider', '$httpProvider', function($routeProvider, $locationProvider, $httpProvider) {
 	$routeProvider
 		.when('/chat', {
 			templateUrl: 'chat/chat.html',
 			controller: 'ChatCtrl'
 		})
+		.when('/login', {
+			templateUrl: 'chat/login.html',
+			controller: 'LoginCtrl'
+		})
 		.otherwise({
-			redirectTo: '/chat'
+			redirectTo: '/login'
 		});
 
 	// Без хэштега
@@ -41013,11 +41122,31 @@ app.config(['$routeProvider', '$locationProvider', function($routeProvider, $loc
 		requireBase: false
 	});
 
+	$httpProvider.interceptors.push(['$q', '$location', '$localStorage', function($q, $location, $localStorage) {
+		return {
+			'request': function (config) {
+				config.headers = config.headers || {};
+				if ($localStorage.token) {
+					config.headers.Authorization = 'Bearer ' + $localStorage.token;
+				}
+				return config;
+			},
+			'responseError': function(response) {
+				if(response.status === 401 || response.status === 403) {
+					$location.path('/login');
+				}
+
+				return $q.reject(response);
+			}
+		};
+	}]);
+
 }]);
 
 // Объявим модуль для кэша шаблонов в один файл и приклеивания его (см gulpfile.js)
 angular.module('templates', []);
-angular.module("templates").run(["$templateCache", function($templateCache) {$templateCache.put("chat/chat.html","<div ng-controller=\"ChatCtrl\">\n\n	<!-- header -->\n	<div class=\"row\">\n		<div class=\"col-md-12\">\n			<h1>This is chat for tests</h1>\n		</div>\n	</div><!-- end header -->\n\n	<!-- Сообщения -->\n	<div class=\"row\">\n		<div class=\"col-md-8\">\n			<div ng-repeat=\"m in messagesList\" class=\"well well-sm\">\n				<div style=\"font-size: 12px;\"><b>{{ m.user }}</b> wrote on <b>{{ m.date }}</b>:</div>\n				<div>{{ m.text }}</div>\n			</div>\n		</div>\n	</div><!-- End Сообщения -->\n\n	<!-- форма ввода сообщения -->\n	<div class=\"row\">\n		<div class=\"col-md-8\">\n			<form class=\"form-horizontal\">\n				<div class=\"form-group\">\n					<label for=\"input-message\" class=\"col-md-4 control-label\">\n						Введите текст\n					</label>\n					<div class=\"col-md-8\">\n						<input type=\"text\" ng-model=\"message.text\" class=\"form-control\" id=\"input-message\">\n					</div>\n				</div>\n\n				<div class=\"form-group\">\n					<div class=\"col-md-3 col-md-offset-9\">\n						<button class=\"btn btn-default btn-block\" ng-click=\"sendMessage(message)\">Отправить</button>\n					</div>\n				</div>\n\n			</form>\n		</div>\n	</div><!-- end форма ввода сообщения -->\n\n</div>\n");}]);
+angular.module("templates").run(["$templateCache", function($templateCache) {$templateCache.put("chat/chat.html","<div ng-controller=\"ChatCtrl\">\n\n	<!-- header -->\n	<div class=\"row\">\n		<div class=\"col-md-12\">\n			<h1>This is chat for tests</h1>\n		</div>\n	</div><!-- end header -->\n\n	<!-- Сообщения -->\n	<div class=\"row\">\n		<div class=\"col-md-8\">\n			<div ng-repeat=\"m in messagesList\" class=\"well well-sm\">\n				<div style=\"font-size: 12px;\"><b>{{ m.user }}</b> wrote on <b>{{ m.date }}</b>:</div>\n				<div>{{ m.text }}</div>\n			</div>\n		</div>\n	</div><!-- End Сообщения -->\n\n	<!-- форма ввода сообщения -->\n	<div class=\"row\">\n		<div class=\"col-md-8\">\n			<form class=\"form-horizontal\">\n				<div class=\"form-group\">\n					<label for=\"input-message\" class=\"col-md-4 control-label\">\n						Введите текст\n					</label>\n					<div class=\"col-md-8\">\n						<input type=\"text\" ng-model=\"message.text\" class=\"form-control\" id=\"input-message\">\n					</div>\n				</div>\n\n				<div class=\"form-group\">\n					<div class=\"col-md-3 col-md-offset-9\">\n						<button class=\"btn btn-default btn-block\" ng-click=\"sendMessage(message)\">Отправить</button>\n					</div>\n				</div>\n\n			</form>\n		</div>\n	</div><!-- end форма ввода сообщения -->\n\n</div>\n");
+$templateCache.put("chat/login.html","<h1>Login Page</h1>\n<form>\n	<div>{{formError}}</div>\n	<input type=\"text\" ng-model=\"loginUser.login\"/>\n	<input type=\"password\" ng-model=\"loginUser.password\"/>\n	<button ng-click=\"login()\">Войти</button>\n</form>");}]);
 (function() {
 	angular.module('app.controllers', [])
 		.controller('ChatCtrl', ["$scope", 'messagesList', function($scope, messagesList) {
@@ -41051,11 +41180,34 @@ angular.module("templates").run(["$templateCache", function($templateCache) {$te
 				$scope.message = angular.copy(defaultMessage);
 			}
 		}]);
+
+	angular.module('app.controllers')
+		.controller('LoginCtrl', ['$scope', '$location', '$localStorage', 'User', function($scope, $location, $localStorage, User) {
+			// Если есть токен, то просто редиректим на страницу чата
+			if ($localStorage.token) {
+				//$location.path('/chat');
+			}
+			$scope.loginUser = User;
+			$scope.formError = null;
+
+			/**
+			 * Функция входа на сайт
+			 */
+			$scope.login = function() {
+				$scope.loginUser
+					.getToken()
+					.then(function(res) {
+						$localStorage.token = res.token;
+						$location.path('/chat');
+					}, function(errRes) {
+						$scope.formError = errRes.data.err;
+						$location.path('/login');
+					});
+			}
+		}])
 })();
-
-
 (function(window, $, _) {
-	var ChatApi = angular.module('app.services', ['ngResource']);
+	var ChatApi = angular.module('app.chatApi', ['ngResource']);
 
 	ChatApi.factory('messagesList', ['$resource', function($resource) {
 		//return $resource();
@@ -41074,6 +41226,37 @@ angular.module("templates").run(["$templateCache", function($templateCache) {$te
 				, user: 'User Name'
 			}
 		];
+	}]);
+
+	/**
+	 * Сервис взаимодействия с пользователем
+	 * @todo: переименовать в authservice
+	 * @todo: реализовать синглтон
+	 */
+	ChatApi.factory('User', ['$resource', function($resource) {
+		var authService = $resource('auth/get-token', {}, {
+			getToken: {
+				method: 'POST'
+			}
+		});
+
+		var User = function() {};
+		User.prototype = {
+			login: null,
+			password: null,
+
+			getToken: function() {
+				var self = this;
+				return authService.getToken({}, {
+					login: self.login
+					, password: self.password
+				}).$promise;
+			}
+		};
+
+		var usr = new User();
+
+		return usr;
 	}]);
 
 })(window, $, _);

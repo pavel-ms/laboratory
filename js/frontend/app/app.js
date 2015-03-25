@@ -5,23 +5,28 @@ var app = angular
 	.module('app', [
 		'ngRoute'
 		, 'ngResource'
+		, 'ngStorage'
 		// my own modules and services
 		, 'templates'
 		, 'app.controllers'
-		, 'app.services'
+		, 'app.chatApi'
 	]);
 
 /**
- * Конфигурируем роутер
+ * Конфигурируем приложение
  **/
-app.config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider) {
+app.config(['$routeProvider', '$locationProvider', '$httpProvider', function($routeProvider, $locationProvider, $httpProvider) {
 	$routeProvider
 		.when('/chat', {
 			templateUrl: 'chat/chat.html',
 			controller: 'ChatCtrl'
 		})
+		.when('/login', {
+			templateUrl: 'chat/login.html',
+			controller: 'LoginCtrl'
+		})
 		.otherwise({
-			redirectTo: '/chat'
+			redirectTo: '/login'
 		});
 
 	// Без хэштега
@@ -29,6 +34,25 @@ app.config(['$routeProvider', '$locationProvider', function($routeProvider, $loc
 		enabled: true,
 		requireBase: false
 	});
+
+	$httpProvider.interceptors.push(['$q', '$location', '$localStorage', function($q, $location, $localStorage) {
+		return {
+			'request': function (config) {
+				config.headers = config.headers || {};
+				if ($localStorage.token) {
+					config.headers.Authorization = 'Bearer ' + $localStorage.token;
+				}
+				return config;
+			},
+			'responseError': function(response) {
+				if(response.status === 401 || response.status === 403) {
+					$location.path('/login');
+				}
+
+				return $q.reject(response);
+			}
+		};
+	}]);
 
 }]);
 
