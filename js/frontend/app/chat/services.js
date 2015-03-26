@@ -22,18 +22,21 @@
 
 	/**
 	 * Сервис взаимодействия с пользователем
-	 * @todo: переименовать в authservice
-	 * @todo: реализовать синглтон
 	 */
-	ChatApi.factory('User', ['$resource', function($resource) {
+	var authSrv = null;
+	ChatApi.factory('AuthService', ['$resource', function($resource) {
+		if (authSrv) {
+			return authSrv;
+		}
+		// ресурс работы с API
 		var authService = $resource('auth/get-token', {}, {
 			getToken: {
 				method: 'POST'
 			}
 		});
 
-		var User = function() {};
-		User.prototype = {
+		var Mod = function() {};
+		Mod.prototype = {
 			login: null,
 			password: null,
 
@@ -46,9 +49,9 @@
 			}
 		};
 
-		var usr = new User();
+		var authSrv = new Mod();
 
-		return usr;
+		return authSrv;
 	}]);
 
 })(window, $, _);

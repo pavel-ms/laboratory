@@ -33,12 +33,12 @@
 		}]);
 
 	angular.module('app.controllers')
-		.controller('LoginCtrl', ['$scope', '$location', '$localStorage', 'User', function($scope, $location, $localStorage, User) {
+		.controller('LoginCtrl', ['$scope', '$location', '$localStorage', 'AuthService', function($scope, $location, $localStorage, AuthService) {
 			// Если есть токен, то просто редиректим на страницу чата
 			if ($localStorage.token) {
-				//$location.path('/chat');
+				$location.path('/chat');
 			}
-			$scope.loginUser = User;
+			$scope.loginUser = AuthService;
 			$scope.formError = null;
 
 			/**

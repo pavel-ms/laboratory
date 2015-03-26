@@ -41182,12 +41182,12 @@ $templateCache.put("chat/login.html","<h1>Login Page</h1>\n<form>\n	<div>{{formE
 		}]);
 
 	angular.module('app.controllers')
-		.controller('LoginCtrl', ['$scope', '$location', '$localStorage', 'User', function($scope, $location, $localStorage, User) {
+		.controller('LoginCtrl', ['$scope', '$location', '$localStorage', 'AuthService', function($scope, $location, $localStorage, AuthService) {
 			// Если есть токен, то просто редиректим на страницу чата
 			if ($localStorage.token) {
-				//$location.path('/chat');
+				$location.path('/chat');
 			}
-			$scope.loginUser = User;
+			$scope.loginUser = AuthService;
 			$scope.formError = null;
 
 			/**
@@ -41230,18 +41230,21 @@ $templateCache.put("chat/login.html","<h1>Login Page</h1>\n<form>\n	<div>{{formE
 
 	/**
 	 * Сервис взаимодействия с пользователем
-	 * @todo: переименовать в authservice
-	 * @todo: реализовать синглтон
 	 */
-	ChatApi.factory('User', ['$resource', function($resource) {
+	var authSrv = null;
+	ChatApi.factory('AuthService', ['$resource', function($resource) {
+		if (authSrv) {
+			return authSrv;
+		}
+		// ресурс работы с API
 		var authService = $resource('auth/get-token', {}, {
 			getToken: {
 				method: 'POST'
 			}
 		});
 
-		var User = function() {};
-		User.prototype = {
+		var Mod = function() {};
+		Mod.prototype = {
 			login: null,
 			password: null,
 
@@ -41254,9 +41257,9 @@ $templateCache.put("chat/login.html","<h1>Login Page</h1>\n<form>\n	<div>{{formE
 			}
 		};
 
-		var usr = new User();
+		var authSrv = new Mod();
 
-		return usr;
+		return authSrv;
 	}]);
 
 })(window, $, _);
